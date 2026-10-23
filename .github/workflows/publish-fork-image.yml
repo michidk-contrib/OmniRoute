@@ -24,7 +24,7 @@ jobs:
         with:
           context: .
           target: runner-base
-          platforms: linux/amd64
+          platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/omniroute:fix-release-3.8.53-provider-display
           build-args: |
