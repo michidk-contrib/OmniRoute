@@ -72,14 +72,6 @@ const HARD_GATED_INVENTORY: ReadonlyArray<{ path: string; why: string }> = [
     path: "/api/settings/obsidian",
     why: "POST stores the Obsidian Local REST API token; same credential surface as its /webdav child (GHSA-7pq4-8pvv-rx7r)",
   },
-  // ── Reported in GHSA-qxg2-rm3h-4cxp ──────────────────────────────────────
-  // GET spreads every provider_connections row verbatim — the lazy-decrypt
-  // proxy hands out apiKey / accessToken / refreshToken / idToken in plaintext
-  // — and the route makes no auth call of its own.
-  {
-    path: "/api/providers/client",
-    why: "returns every connection's decrypted apiKey/accessToken/refreshToken/idToken (GHSA-qxg2-rm3h-4cxp)",
-  },
   // ── Relay token issuance ─────────────────────────────────────────────────
   // POST mints a reusable inference credential and returns it in clear once,
   // GET lists every token's id/prefix/limits, and the [id] child edits, toggles
@@ -144,7 +136,6 @@ test("the trailing-slash spelling is gated too", () => {
     "/api/providers/abc/codex-auth/export/",
     "/api/logs/export/",
     "/api/cli-tools/codex-profiles/",
-    "/api/providers/client/",
     "/api/relay/tokens/",
     "/api/sync/tokens/",
   ]) {

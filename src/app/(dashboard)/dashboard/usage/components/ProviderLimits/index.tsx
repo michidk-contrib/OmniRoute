@@ -230,6 +230,7 @@ export default function ProviderLimits({
   const emailsVisible = useEmailPrivacyStore((s) => s.emailsVisible);
   const notify = useNotificationStore();
   const [connections, setConnections] = useState<any[]>([]);
+  const [connectionsError, setConnectionsError] = useState(false);
   const [togglingActiveId, setTogglingActiveId] = useState<string | null>(null);
   const [quotaData, setQuotaData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -328,9 +329,11 @@ export default function ProviderLimits({
       const data = await response.json();
       const list = data.connections || [];
       setConnections(list);
+      setConnectionsError(false);
       return list;
     } catch {
       setConnections([]);
+      setConnectionsError(true);
       return [];
     }
   }, []);
@@ -854,9 +857,13 @@ export default function ProviderLimits({
       <Card padding="lg">
         <div className="text-center py-12">
           <Icon name="cloud_off" size={64} className="opacity-15" />
-          <h3 className="mt-4 text-lg font-semibold text-text-main">{t("noProviders")}</h3>
+          <h3 className="mt-4 text-lg font-semibold text-text-main">
+            {connectionsError ? "Unable to load provider connections" : t("noProviders")}
+          </h3>
           <p className="mt-2 text-sm text-text-muted max-w-[400px] mx-auto">
-            {t("connectProvidersForQuota")}
+            {connectionsError
+              ? "The provider list request failed. Check dashboard authentication and try again."
+              : t("connectProvidersForQuota")}
           </p>
         </div>
       </Card>
