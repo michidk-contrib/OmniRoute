@@ -43,9 +43,17 @@ function isRenewingClaudeQuota(input: ClaudeQuotaFailure): boolean {
   );
 }
 
+function isModelEntitlementFailure(input: ClaudeQuotaFailure): boolean {
+  return (
+    input.provider === "claude" &&
+    input.status === 429 &&
+    isCreditsExhausted(input.errorText)
+  );
+}
+
 /** A recurring Claude quota is temporary; it must never become depleted credits. */
 export async function handleClaudeQuotaFailure(input: ClaudeQuotaFailure): Promise<boolean> {
-  if (!isRenewingClaudeQuota(input)) return false;
+  if (!isRenewingClaudeQuota(input) && !isModelEntitlementFailure(input)) return false;
   if (await input.deps.isProbe()) return false;
   // The outer handler resolves the exact scope and reset. Prewriting a cooldown here
   // would trip its duplicate-write guard before it can persist that evidence.
@@ -75,7 +83,7 @@ export async function handleClaudeQuotaFailure(input: ClaudeQuotaFailure): Promi
     lastErrorAt: new Date().toISOString(),
     errorCode: input.status,
   };
-  if (scope.scope === "model") {
+  if (scope.scope === "model" || isModelEntitlementFailure(input)) {
     lockModel(input.provider, input.connectionId, input.model, "quota_exhausted", cooldownMs);
     await input.deps.persistConnection(input.connectionId, metadata);
   } else {
