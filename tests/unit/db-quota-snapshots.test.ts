@@ -95,6 +95,36 @@ test("quotaSnapshots aggregates by provider or connection and rejects invalid bu
   assert.equal(providerAgg[0].remainingPct, 60);
   assert.equal(connectionAgg[0].provider, "openai:conn-a");
 
+  // Provider view represents the account pool: a depleted account must not
+  // hide a sibling account that still has capacity.
+  quotaSnapshotsDb.saveQuotaSnapshot({
+    provider: "claude",
+    connection_id: "conn-exhausted",
+    window_key: "session (5h)",
+    remaining_percentage: 0,
+    is_exhausted: 1,
+    next_reset_at: null,
+    window_duration_ms: 18000000,
+    raw_data: "{}",
+  });
+  quotaSnapshotsDb.saveQuotaSnapshot({
+    provider: "claude",
+    connection_id: "conn-healthy",
+    window_key: "session (5h)",
+    remaining_percentage: 97,
+    is_exhausted: 0,
+    next_reset_at: null,
+    window_duration_ms: 18000000,
+    raw_data: "{}",
+  });
+  const pooled = quotaSnapshotsDb.getAggregatedSnapshots({
+    provider: "claude",
+    since: "2000-01-01T00:00:00.000Z",
+    bucketMinutes: 60,
+  });
+  assert.equal(pooled[0].remainingPct, 97);
+  assert.equal(pooled[0].isExhausted, false);
+
   assert.throws(
     () =>
       quotaSnapshotsDb.getAggregatedSnapshots({
