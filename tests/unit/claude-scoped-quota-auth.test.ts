@@ -1100,3 +1100,49 @@ test("Claude non-quota failure scopes and Anthropic API-key behavior follow prov
   assert.equal(fallback.isModelLocked("anthropic", anthropic.id, "claude-fable-5-1"), false);
   assert.notEqual(updated.testStatus, "active");
 });
+
+test("usage-credit entitlement locks only Fable without quota-cache evidence", async () => {
+  const connection = await seedConnection("claude", {
+    authType: "oauth",
+    accessToken: "test-access",
+    refreshToken: "test-refresh",
+  });
+  const text = "[429]: Usage credits are required for this model.";
+  const decision = quotaCache.getCachedClaudeQuotaScopeDecision({
+    connectionId: connection.id,
+    provider: "claude",
+    status: 429,
+    errorText: text,
+    model: "claude-fable-5-1",
+  });
+  assert.equal(decision.scope, "model");
+  const result = await auth.markAccountUnavailable(
+    connection.id,
+    429,
+    text,
+    "claude",
+    "claude-fable-5-1"
+  );
+  await flushWrites();
+  const updated = await providersDb.getProviderConnectionById(connection.id);
+  assert.ok(result.cooldownMs >= 5 * 60 * 1000);
+  assert.ok(!updated.rateLimitedUntil);
+  assert.notEqual(updated.testStatus, "unavailable");
+  assert.equal(fallback.isModelLocked("claude", connection.id, "claude-fable-5-1"), true);
+  assert.equal(fallback.isModelLocked("claude", connection.id, "claude-sonnet-5-5"), false);
+});
+
+test("general credit failures do not become model entitlement failures", () => {
+  for (const errorText of ["insufficient credits", "credits exhausted", "monthly spend limit"]) {
+    assert.equal(
+      quotaCache.getCachedClaudeQuotaScopeDecision({
+        connectionId: "test-account",
+        provider: "claude",
+        status: 429,
+        errorText,
+        model: "claude-fable-5-1",
+      }).scope,
+      "connection"
+    );
+  }
+});
