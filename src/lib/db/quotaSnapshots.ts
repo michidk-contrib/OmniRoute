@@ -237,12 +237,18 @@ export function getAggregatedSnapshots(opts: {
     throw new Error("Invalid bucket size");
   }
 
-  const groupFields =
-    opts.aggregateBy === "connection"
-      ? "bucket, provider, connection_id, window_key"
-      : "bucket, provider, window_key";
-  const selectKey =
-    opts.aggregateBy === "connection" ? "provider || ':' || connection_id as provider" : "provider";
+  const byConnection = opts.aggregateBy === "connection";
+  const groupFields = byConnection
+    ? "bucket, provider, connection_id, window_key"
+    : "bucket, provider, window_key";
+  const selectKey = byConnection ? "provider || ':' || connection_id as provider" : "provider";
+  // Provider view represents a pool of accounts: one exhausted account must not
+  // make the whole provider appear empty while a sibling account still has
+  // capacity. Account view keeps the historical per-connection average.
+  const remainingAggregate = byConnection
+    ? "AVG(remaining_percentage)"
+    : "MAX(remaining_percentage)";
+  const exhaustedAggregate = byConnection ? "MAX(is_exhausted)" : "MIN(is_exhausted)";
 
   try {
     const sql = `
@@ -250,8 +256,8 @@ export function getAggregatedSnapshots(opts: {
         SELECT
           datetime((strftime('%s', created_at) / ${bucketSeconds}) * ${bucketSeconds}, 'unixepoch') as bucket,
           ${selectKey},
-          AVG(remaining_percentage) as remainingPct,
-          MAX(is_exhausted) as isExhausted,
+          ${remainingAggregate} as remainingPct,
+          ${exhaustedAggregate} as isExhausted,
           window_key
         FROM quota_snapshots
         WHERE ${conditions.join(" AND ")}
