@@ -153,6 +153,15 @@ test("Claude monthly spend limit 429 gets the subscription quota cooldown", () =
   assert.ok(out.cooldownMs >= 5 * 60 * 1000, `expected long cooldown, got ${out.cooldownMs}ms`);
 });
 
+test("Claude missing usage credits gets the subscription quota cooldown", () => {
+  const text = "[429]: Usage credits are required for this model.";
+  assert.equal(isSubscriptionQuotaText(text.toLowerCase(), "claude"), true);
+  const out = checkFallbackError(429, text, 0, null, "claude");
+  assert.equal(out.shouldFallback, true);
+  assert.equal(out.reason, RateLimitReason.QUOTA_EXHAUSTED);
+  assert.ok(out.cooldownMs >= 5 * 60 * 1000, `expected long cooldown, got ${out.cooldownMs}ms`);
+});
+
 test("Claude per-minute rate limit text is not mistaken for the monthly spend limit", () => {
   const out = checkFallbackError(
     429,

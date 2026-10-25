@@ -16,6 +16,7 @@
  * @module domain/quotaCache
  */
 
+import { isClaudeModelCreditRequirement } from "@omniroute/open-sse/services/quotaTextCooldowns.ts";
 import { hasOllamaPurchasedCredits } from "@omniroute/open-sse/services/ollamaPurchasedCredits.ts";
 import { getUsageForProvider } from "@omniroute/open-sse/services/usage.ts";
 import { getCachedProviderConnectionById } from "@/lib/db/readCache";
@@ -599,6 +600,13 @@ export function getCachedClaudeQuotaScopeDecision(input: {
     !isExplicitClaudeQuota429Text(input.errorText)
   ) {
     return CONNECTION_SCOPED_CLAUDE_QUOTA;
+  }
+
+  // This upstream response names the requested model explicitly. Unlike a
+  // weekly quota, entitlement does not require cached usage evidence and must
+  // not park sibling models. Share this decision with auth and combo callers.
+  if (isClaudeModelCreditRequirement(input.errorText)) {
+    return { scope: "model", evidence: "blocking", resetAt: null, cooldownMs: null };
   }
 
   const requestedModel = input.model;
