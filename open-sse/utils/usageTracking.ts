@@ -487,13 +487,28 @@ function hasRemoteContextReference(value: unknown, depth = 0): boolean {
   return false;
 }
 
+// The request body is fixed for the duration of a stream. Cache both the
+// remote-context check and serialized size so usage-bearing SSE chunks do not
+// repeatedly walk and serialize a large conversation.
+const serializedBodyBytesCache = new WeakMap<object, number | null>();
+
 function getSerializedBodyBytes(body: unknown): number | null {
-  if (!body || typeof body !== "object" || hasRemoteContextReference(body)) return null;
+  if (!body || typeof body !== "object") return null;
+  const cached = serializedBodyBytesCache.get(body);
+  if (cached !== undefined) return cached;
+
+  if (hasRemoteContextReference(body)) {
+    serializedBodyBytesCache.set(body, null);
+    return null;
+  }
+
   try {
     const serialized = JSON.stringify(body);
-    if (!serialized) return null;
-    return Buffer.byteLength(serialized, "utf8");
+    const result = serialized ? Buffer.byteLength(serialized, "utf8") : null;
+    serializedBodyBytesCache.set(body, result);
+    return result;
   } catch {
+    serializedBodyBytesCache.set(body, null);
     return null;
   }
 }
